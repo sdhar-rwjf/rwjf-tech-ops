@@ -1,5 +1,5 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: Create VPC, Subnets, and Aurora Serverless MySQL Database
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Create VPC, Private Subnets, and Aurora Serverless MySQL Database
 
 Parameters:
   VPCCidrBlock:
@@ -7,29 +7,19 @@ Parameters:
     Default: 10.0.0.0/16
     Description: CIDR block for the VPC
 
-  PublicSubnetCidrBlock1:
-    Type: String
-    Default: 10.0.1.0/24
-    Description: CIDR block for public subnet 1
-
-  PublicSubnetCidrBlock2:
-    Type: String
-    Default: 10.0.2.0/24
-    Description: CIDR block for public subnet 2
-
   PrivateSubnetCidrBlock1:
     Type: String
-    Default: 10.0.3.0/24
+    Default: 10.0.1.0/24
     Description: CIDR block for private subnet 1
 
   PrivateSubnetCidrBlock2:
     Type: String
-    Default: 10.0.4.0/24
+    Default: 10.0.2.0/24
     Description: CIDR block for private subnet 2
 
   DatabaseName:
     Type: String
-    Default: mydatabase
+    Default: tangodb
     Description: Name of the Aurora Serverless MySQL Database
 
   DatabaseMasterUsername:
@@ -54,33 +44,11 @@ Resources:
         - Key: Name
           Value: MyVPC
 
-  PublicSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
-      CidrBlock: !Ref PublicSubnetCidrBlock1
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: Public Subnet 1
-
-  PublicSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
-      CidrBlock: !Ref PublicSubnetCidrBlock2
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: Public Subnet 2
-
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      AvailabilityZone: !Select [0, !GetAZs ""]
       CidrBlock: !Ref PrivateSubnetCidrBlock1
       MapPublicIpOnLaunch: false
       Tags:
@@ -91,12 +59,22 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      AvailabilityZone: !Select [1, !GetAZs ""]
       CidrBlock: !Ref PrivateSubnetCidrBlock2
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
           Value: Private Subnet 2
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-my-bucket"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
   AuroraServerlessCluster:
     Type: AWS::RDS::DBCluster
@@ -131,15 +109,9 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-VPCID"
 
-  PublicSubnets:
-    Description: A list of the public subnets
-    Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
-    Export:
-      Name: !Sub "${AWS::StackName}-PUB-NETS"
-
   PrivateSubnets:
     Description: A list of the private subnets
-    Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+    Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
     Export:
       Name: !Sub "${AWS::StackName}-PRIV-NETS"
 
@@ -148,3 +120,9 @@ Outputs:
     Value: !GetAtt AuroraServerlessCluster.Endpoint
     Export:
       Name: !Sub "${AWS::StackName}-AuroraEndpoint"
+
+  S3BucketName:
+    Description: The name of the S3 bucket
+    Value: !Ref S3Bucket
+    Export:
+      Name: !Sub "${AWS::StackName}-S3BucketName"
