@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Create VPC, Private Subnets, and Aurora Serverless MySQL Database
+Description: Create VPC, Private Subnets, Aurora Serverless MySQL Database, and Secrets Manager Secret
 
 Parameters:
   VPCCidrBlock:
@@ -22,16 +22,6 @@ Parameters:
     Default: tangodb
     Description: Name of the Aurora Serverless MySQL Database
 
-  DatabaseMasterUsername:
-    Type: String
-    NoEcho: true
-    Description: Master username for the Aurora Serverless MySQL Database
-
-  DatabaseMasterPassword:
-    Type: String
-    NoEcho: true
-    Description: Master password for the Aurora Serverless MySQL Database
-
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -42,7 +32,7 @@ Resources:
       InstanceTenancy: default
       Tags:
         - Key: Name
-          Value: MyVPC
+          Value: RwjfOpsVpc
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -69,7 +59,7 @@ Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::StackName}-my-bucket"
+      BucketName: !Sub "${AWS::StackName}-tango-bucket"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -81,8 +71,16 @@ Resources:
     Properties:
       Engine: aurora-mysql
       EngineMode: serverless
-      MasterUsername: !Ref DatabaseMasterUsername
-      MasterUserPassword: !Ref DatabaseMasterPassword
+      MasterUsername: !Ref DatabaseSecret
+      MasterUserPassword:
+        !Join [
+          "",
+          [
+            "{{resolve:secretsmanager:",
+            !Ref DatabaseSecret,
+            ":SecretString:password}}",
+          ],
+        ]
       DBSubnetGroupName: !Ref AuroraSubnetGroup
       DatabaseName: !Ref DatabaseName
       VpcSecurityGroupIds:
@@ -101,6 +99,15 @@ Resources:
     Properties:
       GroupDescription: Security group for Aurora Serverless
       VpcId: !Ref VPC
+
+  DatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "rootuser"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
 
 Outputs:
   VPC:
@@ -126,3 +133,9 @@ Outputs:
     Value: !Ref S3Bucket
     Export:
       Name: !Sub "${AWS::StackName}-S3BucketName"
+
+  DatabaseSecretArn:
+    Description: The ARN of the Secrets Manager secret for the database credentials
+    Value: !Ref DatabaseSecret
+    Export:
+      Name: !Sub "${AWS::StackName}-DatabaseSecretArn"
