@@ -71,16 +71,8 @@ Resources:
     Properties:
       Engine: aurora-mysql
       EngineMode: serverless
-      MasterUsername: !Ref DatabaseSecret
-      MasterUserPassword:
-        !Join [
-          "",
-          [
-            "{{resolve:secretsmanager:",
-            !Ref DatabaseSecret,
-            ":SecretString:password}}",
-          ],
-        ]
+      MasterUsername: !Sub "{{resolve:secretsmanager:${DatabaseSecret}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DatabaseSecret}:SecretString:password}}"
       DBSubnetGroupName: !Ref AuroraSubnetGroup
       DatabaseName: !Ref DatabaseName
       VpcSecurityGroupIds:
@@ -108,6 +100,7 @@ Resources:
         GenerateStringKey: "password"
         PasswordLength: 16
         ExcludeCharacters: '"@/\'
+        IncludeSpace: false
 
 Outputs:
   VPC:
@@ -118,13 +111,13 @@ Outputs:
 
   PrivateSubnets:
     Description: A list of the private subnets
-    Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+    Value: !Join [", ", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
     Export:
       Name: !Sub "${AWS::StackName}-PRIV-NETS"
 
   AuroraServerlessClusterEndpoint:
     Description: The endpoint for the Aurora Serverless cluster
-    Value: !GetAtt AuroraServerlessCluster.Endpoint
+    Value: !GetAtt AuroraServerlessCluster.Endpoint.Address
     Export:
       Name: !Sub "${AWS::StackName}-AuroraEndpoint"
 
