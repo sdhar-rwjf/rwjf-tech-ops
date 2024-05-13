@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Creates the TangoUser and associated policies
+
+Resources:
+  TangoUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: tango-user
+
+  TangoUserConsoleDenyPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: TangoUserConsoleDenyPolicy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Deny"
+            Action:
+              - "sts:GetFederationToken"
+              - "sts:GetCallerIdentity"
+            Resource: "*"
+      Users:
+        - !Ref TangoUser
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: The name of the S3 bucket created in the main stack
+
+Outputs:
+  TangoUserArn:
+    Description: The ARN of the TangoUser
+    Value: !GetAtt TangoUser.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-TangoUserArn"

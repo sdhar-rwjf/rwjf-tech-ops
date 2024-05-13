@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Create Aurora Serverless MySQL Database and Secrets Manager Secret
+
+Resources:
+  RDSCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      BackupRetentionPeriod: 7
+      DatabaseName: "aqintegrations"
+      DBClusterIdentifier: "tangodb-cluster"
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DeletionProtection: false
+      EnableHttpEndpoint: true
+      Engine: aurora-mysql
+      EngineVersion: 5.7.mysql_aurora.2.07.1
+      EngineMode: serverless
+      MasterUsername: !Sub "{{resolve:secretsmanager:${DatabaseSecret}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DatabaseSecret}:SecretString:password}}"
+      ScalingConfiguration:
+        AutoPause: true
+        MaxCapacity: 4
+        MinCapacity: 1
+      VpcSecurityGroupIds:
+        - !Ref DBSecurityGroup
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnets for Aurora Serverless
+      SubnetIds: !Split [",", !ImportValue "tango-vpc-stack-PRIV-NETS"]
+
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Aurora Serverless
+      VpcId: !ImportValue "tango-vpc-stack-VPCID"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !ImportValue "tango-vpc-stack-LambdaSecurityGroup"
+
+  DatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "rootuser"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+        IncludeSpace: false
+
+Outputs:
+  DBClusterEndpoint:
+    Description: The endpoint for the Aurora Serverless cluster
+    Value: !GetAtt RDSCluster.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-AuroraEndpoint"
+
+  DatabaseSecretArn:
+    Description: The ARN of the Secrets Manager secret for the database credentials
+    Value: !Ref DatabaseSecret
+    Export:
+      Name: !Sub "${AWS::StackName}-DatabaseSecretArn"
