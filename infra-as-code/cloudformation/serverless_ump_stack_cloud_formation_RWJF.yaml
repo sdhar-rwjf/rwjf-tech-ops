@@ -1,0 +1,336 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Template to Serverless UMP Stack
+
+Parameters:
+  MainBucketName:
+    Type: String
+    Default: tango-stack-tango-bucket
+  DeploymentBucketName:
+    Type: String
+    Default: tango-cloudformation-bucket
+
+Resources:
+  MyTestRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Description: Role to provide access to S3
+      Policies:
+        - PolicyName: EmbeddedInlinePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: "cloudformation:*"
+                Resource: "*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      RoleName: AgilQuestServerlessAccess
+
+  ReserveIntegrationsRDSRole:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Managed Policy to attach to MyTestRole Role
+      ManagedPolicyName: AmazonRDSDataFullAccess
+      Path: /
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "rds-data:ExecuteSql"
+              - "rds-data:ExecuteStatement"
+              - "rds-data:BatchExecuteStatement"
+              - "rds-data:BeginTransaction"
+              - "rds-data:CommitTransaction"
+              - "rds-data:RollbackTransaction"
+              - "secretsmanager:ListSecrets"
+              - "secretsmanager:GetSecretValue"
+            Resource: "*"
+      Roles:
+        - !Ref MyTestRole
+
+  AQIntegrationsLambdaRole:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Managed Policy to attach to MyTestRole Role
+      ManagedPolicyName: AWSLambdaBasicExecutionRole
+      Path: /
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: "*"
+      Roles:
+        - !Ref MyTestRole
+
+  ExternalInlinePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "sqs:*"
+            Resource: "*"
+      PolicyName: InlinePolicy
+      Roles:
+        - !Ref MyTestRole
+
+  UMPLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      CompatibleRuntimes:
+        - python3.8
+        - python3.9
+        - python3.10
+        - python3.11
+      Content:
+        S3Bucket: !Ref DeploymentBucketName
+        S3Key: python_ump_lambda_mysql_connector_RWJF_prod.zip
+      Description: Serverless UMP Test Code for Client
+      LayerName: rwjf_custom_ump_layer
+
+  #  S3Bucket:
+  #    DeletionPolicy: Delete
+  #    Type: "AWS::S3::Bucket"
+  #    Description: Creating Amazon S3 bucket from CloudFormation
+  #    Properties:
+  #      BucketName: !Ref MainBucketName
+  #      AccessControl: Private
+  #      PublicAccessBlockConfiguration:
+  #        BlockPublicAcls: true
+  #        BlockPublicPolicy: true
+  #        IgnorePublicAcls: true
+  #        RestrictPublicBuckets: true
+  #      BucketEncryption:
+  #        ServerSideEncryptionConfiguration:
+  #          - ServerSideEncryptionByDefault:
+  #              SSEAlgorithm: AES256
+  #      VersioningConfiguration:
+  #        Status: Suspended
+
+  UserManagementStartProcess:
+    Type: "AWS::Lambda::Function"
+    Description: Creating User Management Start Process Function from CloudFormation
+    Properties:
+      FunctionName: UserManagement_StartProcess
+      Role: !GetAtt MyTestRole.Arn
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Timeout: 900
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-0bec77f4a26120de7
+        SubnetIds:
+          - subnet-04400a0769828c204
+          - subnet-07d87d2a6c50e8306
+      MemorySize: 1024
+      EphemeralStorage:
+        Size: 1024
+      Code:
+        S3Bucket: !Ref DeploymentBucketName
+        S3Key: UMP_StartProcess.zip
+      Layers:
+        - !Ref UMPLayer
+
+  UserManagementCompleteProcess:
+    Type: "AWS::Lambda::Function"
+    Description: Creating User Management Complete Process Function from CloudFormation
+    Properties:
+      FunctionName: UserManagement_CompleteProcess
+      Role: !GetAtt MyTestRole.Arn
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Timeout: 900
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-0bec77f4a26120de7
+        SubnetIds:
+          - subnet-04400a0769828c204
+          - subnet-07d87d2a6c50e8306
+      MemorySize: 1024
+      EphemeralStorage:
+        Size: 1024
+      Code:
+        S3Bucket: !Ref DeploymentBucketName
+        S3Key: UMP_CompleteProcess.zip
+      Layers:
+        - !Ref UMPLayer
+
+  UserManagementGetUsers:
+    Type: "AWS::Lambda::Function"
+    Description: Creating User Management Get Users Function from CloudFormation
+    Properties:
+      FunctionName: UserManagement_GetUsers
+      Role: !GetAtt MyTestRole.Arn
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Timeout: 900
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-0bec77f4a26120de7
+        SubnetIds:
+          - subnet-04400a0769828c204
+          - subnet-07d87d2a6c50e8306
+      MemorySize: 1024
+      EphemeralStorage:
+        Size: 1024
+      Code:
+        S3Bucket: !Ref DeploymentBucketName
+        S3Key: UMP_GetUsers.zip
+      Layers:
+        - !Ref UMPLayer
+
+  UserManagementGetUserDetail:
+    Type: "AWS::Lambda::Function"
+    Description: Creating User Management Get User Detail Function from CloudFormation
+    Properties:
+      FunctionName: UserManagement_GetUserDetail
+      Role: !GetAtt MyTestRole.Arn
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Timeout: 900
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-0bec77f4a26120de7
+        SubnetIds:
+          - subnet-04400a0769828c204
+          - subnet-07d87d2a6c50e8306
+      MemorySize: 1024
+      EphemeralStorage:
+        Size: 1024
+      Code:
+        S3Bucket: !Ref DeploymentBucketName
+        S3Key: UMP_GetUserDetail.zip
+      Layers:
+        - !Ref UMPLayer
+
+  UserManagementProcessUserData:
+    Type: "AWS::Lambda::Function"
+    Description: Creating User Management Process User Data Function from CloudFormation
+    Properties:
+      FunctionName: UserManagement_ProcessUserData
+      Role: !GetAtt MyTestRole.Arn
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Timeout: 900
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-0bec77f4a26120de7
+        SubnetIds:
+          - subnet-04400a0769828c204
+          - subnet-07d87d2a6c50e8306
+      MemorySize: 1024
+      EphemeralStorage:
+        Size: 1024
+      Code:
+        S3Bucket: !Ref DeploymentBucketName
+        S3Key: UMP_ProcessUserData.zip
+      Layers:
+        - !Ref UMPLayer
+
+  UserManagementUserADDs:
+    Type: "AWS::Lambda::Function"
+    Description: Creating User Management User ADD Function from CloudFormation
+    Properties:
+      FunctionName: UserManagement_UserADDs
+      Role: !GetAtt MyTestRole.Arn
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Timeout: 900
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-0bec77f4a26120de7
+        SubnetIds:
+          - subnet-04400a0769828c204
+          - subnet-07d87d2a6c50e8306
+      MemorySize: 1024
+      EphemeralStorage:
+        Size: 1024
+      Code:
+        S3Bucket: !Ref DeploymentBucketName
+        S3Key: UMP_UserADDs.zip
+      Layers:
+        - !Ref UMPLayer
+
+  UserManagementUserUPDATEs:
+    Type: "AWS::Lambda::Function"
+    Description: Creating User Management User UPDATEs Function from CloudFormation
+    Properties:
+      FunctionName: UserManagement_UserUPDATEs
+      Role: !GetAtt MyTestRole.Arn
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Timeout: 900
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-0bec77f4a26120de7
+        SubnetIds:
+          - subnet-04400a0769828c204
+          - subnet-07d87d2a6c50e8306
+      MemorySize: 1024
+      EphemeralStorage:
+        Size: 1024
+      Code:
+        S3Bucket: !Ref DeploymentBucketName
+        S3Key: UMP_UserUPDATEs.zip
+      Layers:
+        - !Ref UMPLayer
+
+  UserManagementUserARCHIVEs:
+    Type: "AWS::Lambda::Function"
+    Description: Creating User Management User ARCHIVEs Function from CloudFormation
+    Properties:
+      FunctionName: UserManagement_UserARCHIVEs
+      Role: !GetAtt MyTestRole.Arn
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Timeout: 900
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-0bec77f4a26120de7
+        SubnetIds:
+          - subnet-04400a0769828c204
+          - subnet-07d87d2a6c50e8306
+      MemorySize: 1024
+      EphemeralStorage:
+        Size: 1024
+      Code:
+        S3Bucket: !Ref DeploymentBucketName
+        S3Key: UMP_UserARCHIVEs.zip
+      Layers:
+        - !Ref UMPLayer
+
+  S3InvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserManagementStartProcess
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::${MainBucketName}
+
+Outputs:
+  RoleName:
+    Description: Name of Created IAM Role
+    Value: !Ref MyTestRole
+  RoleArn:
+    Description: Arn of Created Role
+    Value: !GetAtt MyTestRole.Arn
+#  S3Bucket:
+#    Description: Bucket Created using this template.
+#    Value: !Ref S3Bucket
